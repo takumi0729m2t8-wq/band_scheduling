@@ -6,9 +6,9 @@ import streamlit as st
 import time
 
 st.title("固定枠作成ツール")
-start_date = st.date_input("期間の初日を入力してください")
+start_date = st.date_input("期間の初日を入力してください", datetime(2025, 1, 1))
 st.write("開始日:", start_date)
-end_date = st.date_input("期間の最終日を入力してください")
+end_date = st.date_input("期間の最終日を入力してください", datetime(2025, 1, 1))
 st.write("最終日:", end_date)
 date_list = [int((start_date + timedelta(days=i)).strftime("%m%d")) 
              for i in range((end_date - start_date).days + 1)]
