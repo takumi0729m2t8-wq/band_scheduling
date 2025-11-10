@@ -30,6 +30,8 @@ per_band_arrays = []
 
 if st.button("実行！"):
     with st.spinner('処理中...'):
+        start_date = dates[0]
+        end_date = dates[1]
         date_list = [int((start_date + timedelta(days=i)).strftime("%m%d")) 
              for i in range((end_date - start_date).days + 1)]
         period_list = [1, 2, 3, 4, 5, 6]
