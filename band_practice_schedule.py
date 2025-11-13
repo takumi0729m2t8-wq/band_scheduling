@@ -73,80 +73,90 @@ if st.button("実行！"):
         l = np.zeros((P, D))
         for i in range(6):
             for j in D_idx:
-                l[i, j] = (P - abs(2.5 - i)) * (D + j) / (P*D)
-        #st.write(l)
+                l[i, j] = (P - abs(2.5 - i)) * (D + 2*j) / (P*D)
+        #st.write(l) 
+        k = 0.5
+        
+        #t = np.zeros(B)
+        #for b in B_idx:
+        #    for d in D_idx:
+        #        if lpSum(per_band_arrays[b, p, d] for p in P_idx) < 3:
+        #            if lpSum(per_band_arrays[b, p, d] for p in P_idx) != 0:
+        #                t[b] = 1
+        #print(t)
+        
     # 3次元の二値変数 x[b,p,d] を辞書で
     # キーはタプル (b,p,d) とする（pは1-based）
         x = LpVariable.dicts("x", [(b, p+1, d) for b in B_idx for p in P_idx for d in D_idx], cat="Binary")
+        y = LpVariable.dicts("y", [(b) for b in B_idx], cat="Binary")
     # 目的関数（全ての x を合計して最大化）
         problem = LpProblem("practice_period", LpMaximize)
-        problem += lpSum(l[p, d] * x[b, p+1, d] for b in B_idx for p in P_idx for d in D_idx) - 100*lpSum(3.0 - lpSum(x[(b, p+1, d)] for p in P_idx for d in reversed(D_idx)) for b in B_idx)
+        problem += lpSum(l[p, d] * x[b, p+1, d] - 100*y[b] for b in B_idx for p in P_idx for d in D_idx)
     # 制約：各バンドに対して(d, p)の合計が最大3になる
         for b in B_idx:
-            problem += lpSum(x[(b, p+1, d)] for p in P_idx for d in reversed(D_idx)) <= 3
+            problem += lpSum(x[(b, p+1, d)] for p in P_idx for d in D_idx) <= 3
         for p in P_idx:
-            for d in reversed(D_idx):
+            for d in D_idx:
                 # 各時間枠に1つのバンドのみ
                 problem += lpSum(x[(b, p+1, d)] for b in B_idx) <= 1
         for b in B_idx:
-            for d in reversed(D_idx):
+            for d in D_idx:
                 # 各バンドは1日に1回のみ
                 problem += lpSum(x[(b, p+1, d)] for p in P_idx) <= 1
         # 制約：x[b,p,d]はa[b,p,d]以下
         for b in B_idx:
             for p in P_idx:
-                for d in reversed(D_idx):
+                for d in D_idx:
                     # a は (B, P, D) の順、pは0-based
-                    problem += x[(b, p+1, d)] <= per_band_arrays[b][p][d]
+                    problem += x[(b, p+1, d)] - per_band_arrays[b][p][d] <= 0
 
+        problem.solve()
+        #結果の表示
+        #for d in (D_idx):
+        #    st.write(f"===== {date_list[d]} =====")
+        #    for p in P_idx:
+        #        for b in B_idx:
+        #            if x[(b, p+1, d)].varValue == 1:
+        #                st.write(f"Period {p+1}: {bands_list[b]}")
 
-            problem.solve()
-            # 結果の表示
-            #for d in (D_idx):
-            #    st.write(f"===== {date_list[d]} =====")
-            #    for p in P_idx:
-            #        for b in B_idx:
-            #            if x[(b, p+1, d)].varValue == 1:
-            #                st.write(f"Period {p+1}: {bands_list[b]}")
+        def x_dict_to_array(x_dict, B, P, D, p_is_one_based=True):
+            arr = np.zeros((B, P, D), dtype=np.int8)
+            for key, var in x_dict.items():
+                try:
+                    b, p, d = key
+                except Exception:
+                    continue
+                val = getattr(var, 'varValue', None)
+                if val is None:
+                    v = 0
+                else:
+                    v = 1 if float(val) > 0.5 else 0
+                if p_is_one_based:
+                    arr[b, p-1, d] = v  # p=1..6 → 0..5
+                else:
+                    arr[b, p, d] = v
+            return arr
 
-            def x_dict_to_array(x_dict, B, P, D, p_is_one_based=True):
-                arr = np.zeros((B, P, D), dtype=np.int8)
-                for key, var in x_dict.items():
-                    try:
-                        b, p, d = key
-                    except Exception:
-                        continue
-                    val = getattr(var, 'varValue', None)
-                    if val is None:
-                        v = 0
-                    else:
-                        v = 1 if float(val) > 0.5 else 0
-                    if p_is_one_based:
-                        arr[b, p-1, d] = v  # p=1..6 → 0..5
-                    else:
-                        arr[b, p, d] = v
-                return arr
+        def per_band_dataframes_from_array(arr, bands_list, date_list, period_list):
+            B, P, D = arr.shape
+            dfs = {}
+            idx = list(period_list)  # 行: 1～6
+            cols = list(date_list)   # 列: 日付
+            for b, band_label in enumerate(bands_list):
+                # arr[b, :, :] は既に (P, D) の形状
+                df = pd.DataFrame(arr[b, :, :], index=idx, columns=cols)
+                dfs[band_label] = df
+            return dfs
 
-            def per_band_dataframes_from_array(arr, bands_list, date_list, period_list):
-                B, P, D = arr.shape
-                dfs = {}
-                idx = list(period_list)  # 行: 1～6
-                cols = list(date_list)   # 列: 日付
-                for b, band_label in enumerate(bands_list):
-                    # arr[b, :, :] は既に (P, D) の形状
-                    df = pd.DataFrame(arr[b, :, :], index=idx, columns=cols)
-                    dfs[band_label] = df
-                return dfs
+        if __name__ == '__main__':
+            #problem.solve()
+            arr = x_dict_to_array(x, B, P, D, p_is_one_based=True)
+            dfs_by_band = per_band_dataframes_from_array(arr, bands_list, date_list, period_list)
 
-            if __name__ == '__main__':
-                problem.solve()
-                arr = x_dict_to_array(x, B, P, D, p_is_one_based=True)
-                dfs_by_band = per_band_dataframes_from_array(arr, bands_list, date_list, period_list)
-
-            #for label, df in dfs_by_band.items():
-            #    print(f"--- Band: {label} ---")
-            #    print(df)
-            #    print()
+            for label, df in dfs_by_band.items():
+                print(f"--- Band: {label} ---")
+                print(df)
+                print()
         
 
         data = np.full((P,D), "", dtype=object)
@@ -191,5 +201,4 @@ st.markdown("""
             """, unsafe_allow_html=True)
 
 with st.expander("バージョン履歴", expanded=False):
-
     st.caption(changelog_content)
