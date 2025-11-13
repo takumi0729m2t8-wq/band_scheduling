@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import streamlit as st
 import time
 
-VERSION = "2.0.0" #as of 2025-11-11
+VERSION = "1.2.0" #as of 2025-11-11
 
 with open("changelog.md", "r", encoding="utf-8") as f:
     changelog_content = f.read()
@@ -191,4 +191,5 @@ st.markdown("""
             """, unsafe_allow_html=True)
 
 with st.expander("バージョン履歴", expanded=False):
+
     st.caption(changelog_content)
